@@ -1,0 +1,541 @@
+%YAML 1.2
+---
+# See http://www.sublimetext.com/docs/3/syntax.html
+file_extensions:
+  - evs
+scope: source.evscript
+version: 2
+
+variables:
+  keyword: '(?:\b(?:env|use|include|def|alias|macro|pool|const|return|yield|typedef|struct|ptr|if|else|while|do|for|repeat|loop)(?!{{iden_cont}}))'
+  iden_cont: '[a-zA-Z0-9_.]'
+  iden_or_kw: '(?:\b[a-zA-Z_]{{iden_cont}}*(?!{{iden_cont}}))'
+  iden: '(?:(?!{{keyword}}){{iden_or_kw}})'
+
+contexts:
+  prototype:
+    - include: comments
+
+  comments:
+    - match: '//'
+      scope: punctuation.definition.comment.evscript
+      push:
+        - meta_scope: comment.line.double-slash.evscript
+        - match: $\n?
+          pop: 1
+    - match: '/\*'
+      scope: punctuation.definition.comment.begin.evscript
+      push:
+        - meta_scope: comment.block.evscript
+        - match: '\*/'
+          scope: punctuation.definition.comment.end.evscript
+          pop: 1
+
+  main:
+    - match: '{{iden}}'
+      scope: storage.type.script.evscript
+      push:
+        - script
+        - script-name
+    - match: '\benv\b'
+      scope: keyword.declaration.type.env.evscript
+      push:
+        - meta-env
+        - env-block
+        - env-name
+    - match: '\binclude\b'
+      scope: keyword.import.evscript
+      push:
+        - semicolon
+        - string
+    - match: '\btypedef\b'
+      scope: keyword.declaration.type.evscript
+      push:
+        - semicolon
+        - type
+        - assign-equals
+        - alias-name
+    - match: '\bstruct\b'
+      scope: keyword.declaration.struct.evscript
+      push:
+        - meta-struct
+        - struct-def
+        - struct-name
+    - match: '#asm'
+      scope: meta.preprocessor.evscript
+      push:
+        - embed-close
+        - Packages/RGBDS/ASM/RGBDS.sublime-syntax
+      with_prototype:
+        - match: '(?=#)'
+          pop: 1
+  embed-close:
+    - match: '#end'
+      scope: meta.preprocessor.evscript
+      pop: 1
+    - match: '#'
+      scope: invalid.illegal.evscript
+      pop: 1
+
+
+  script-name:
+    - match: '{{iden}}'
+      scope: entity.name.script.evscript
+      pop: 1
+    - match: '{{keyword}}'
+      scope: invalid.illegal.evscript
+      pop: 1
+    - match: '(?=[{}])'
+      pop: 1
+
+  script:
+    - match: '\{'
+      scope: punctuation.section.block.begin.evscript
+      set: script-body
+  script-body:
+    - meta_scope: meta.block.evscript
+    - match: '\}'
+      scope: punctuation.section.block.end.evscript
+      pop: 1
+    - include: stmt
+    - include: decl
+    - include: if
+    - include: while
+    - include: do
+    - include: for
+    - include: repeat
+    - include: loop
+    # If all else fails, try to match an expr.
+    - match: '(?=\S)'
+      push:
+        - semicolon
+        - expr
+
+
+  env-name:
+    - match: '{{iden}}'
+      scope: entity.name.type.env.evscript
+      pop: 1
+    - match: '{{keyword}}'
+      scope: invalid.illegal.evscript
+      pop: 1
+    - match: '(?=[{}])'
+      pop: 1
+
+  env-block:
+    - match: '\{'
+      scope: punctuation.section.block.begin.evscript
+      set:
+        - meta_scope: meta.block.evscript
+        - match: '\}'
+          scope: punctuation.section.block.end.evscript
+          pop: 1
+        - include: use
+        - include: def
+        - include: pool
+
+  meta-env:
+    - meta_scope: meta.type.evscript
+    - match: ''
+      pop: 1
+
+
+  alias-name:
+    - include: semicolon-pop
+    - match: '{{iden}}'
+      scope: entity.name.type.alias.evscript
+      pop: 1
+    - match: '{{keyword}}'
+      scope: invalid.illegal.evscript
+      pop: 1
+
+
+  struct-name:
+    - match: '{{iden}}'
+      scope: entity.name.struct.evscript
+      pop: 1
+    - match: '{{keyword}}'
+      scope: invalid.illegal.evscript
+      pop: 1
+    - match: '(?=[{}])'
+      pop: 1
+
+  struct-def:
+    - match: '\{'
+      scope: punctuation.section.block.begin.evscript
+      set:
+        - meta_scope: meta.block.evscript
+        - match: '\}'
+          scope: punctuation.section.block.end.evscript
+          pop: 1
+        - match: '(?=\S+)'
+          push:
+            - seq-comma
+            - type
+            - struct-colon
+            - struct-member
+
+  struct-member:
+    - match: '{{iden}}'
+      scope: variable.other.member.evscript
+      pop: 1
+    - match: '{{keyword}}'
+      scope: invalid.illegal.evscript
+      pop: 1
+    - include: brace-pop
+
+  struct-colon:
+    - match: ':'
+      scope: punctuation.separator.key-value.evscript
+      pop: 1
+    - include: brace-pop
+
+  meta-struct:
+    - meta_scope: meta.struct.evscript
+    - match: ''
+      pop: 1
+
+
+  use:
+    - match: '\buse\b'
+      scope: keyword.import.evscript
+      push:
+        - semicolon
+        - script-ref
+
+  def:
+    - match: '\bdef\b'
+      scope: storage.type.function.evscript keyword.declaration.function.evscript
+      push:
+        - meta-function
+        - semicolon
+        - def-params
+        - func-name
+    - match: '\balias\b'
+      scope: storage.type.function.evscript keyword.declaration.function.evscript
+      push:
+        - meta-function
+        - semicolon
+        - alias-params
+        - func-ref
+        - assign-equals
+        - def-params
+        - func-name
+    - match: '\bmacro\b'
+      scope: storage.type.function.evscript keyword.declaration.function.evscript
+      push:
+        - meta-function
+        - semicolon
+        - func-ref
+        - assign-equals
+        - def-params
+        - func-name
+
+  pool:
+    - match: '\bpool\b'
+      scope: keyword.context.resource.evscript
+      push:
+        - semicolon
+        - expr
+        - assign-equals
+
+  func-name:
+    - match: '\b(?:ret|yld)\b'
+      scope: entity.name.function.evscript support.function.evscript
+      pop: 1
+    - match: '{{iden}}'
+      scope: entity.name.function.evscript
+      pop: 1
+    - match: '{{keyword}}'
+      scope: invalid.illegal.evscript
+      pop: 1
+    - include: semicolon-pop
+    - include: brace-pop
+
+  def-params:
+    - match: '\('
+      scope: punctuation.section.group.begin.evscript
+      set:
+        - meta_content_scope: meta.function.parameters.evscript
+        - match: '(?={{iden_or_kw}})'
+          push:
+            - seq-comma
+            - type
+            - def-modifier
+        - match: '\)'
+          scope: punctuation.section.group.end.evscript
+          pop: 1
+        - include: semicolon-pop
+        - include: brace-pop
+    - include: semicolon-pop
+    - include: brace-pop
+
+  def-modifier:
+    - match: '\breturn\b'
+      scope: storage.modifier.evscript
+      pop: 1
+    - match: '\bconst\b'
+      scope: storage.modifier.evscript
+      pop: 1
+    - match: '(?=\S)'
+      pop: 1
+
+  meta-function:
+    - meta_scope: meta.function.evscript
+    - match: ''
+      pop: 1
+
+  alias-params:
+    - match: '\('
+      scope: punctuation.section.group.begin.evscript
+      set:
+        - match: '\)'
+          scope: punctuation.section.group.end.evscript
+          pop: 1
+        - match: '\$'
+          scope: punctuation.definition.variable.begin.evscript
+          push:
+            - meta_scope: variable.parameter.evscript
+            - match: '[0-9]+'
+              set: seq-comma
+            - match: '\S'
+              set: seq-comma
+        - match: '\bconst\b'
+          scope: storage.modifier.evscript
+          push:
+            - seq-comma
+            - expr
+        - match: '(?=\S)'
+          push:
+            - seq-comma
+            - expr
+    - match: '(?=\S)'
+      pop: 1
+
+
+  stmt:
+    - match: '({{iden}})\s*([-+*/%&|^]?=|<<=|>>=)'
+      captures:
+        1: variable.other.readwrite.evscript
+        2: keyword.operator.assignment.evscript
+      push:
+        - semicolon
+        - expr
+    - match: '\breturn\b'
+      scope: keyword.control.flow.return.evscript
+      push: semicolon
+    - match: '\byield\b'
+      scope: keyword.control.flow.yield.evscript
+      push: semicolon
+
+  decl:
+    - match: '({{iden}})\s*(ptr)?\s*({{iden}})'
+      captures:
+        1: storage.type.evscript
+        2: keyword.other.evscript
+        3: variable.other.readwrite.evscript
+      push:
+        - semicolon
+        - decl-value
+  decl-value:
+    - match: '='
+      scope: keyword.operator.assignment.evscript
+      set: expr
+    - match: '(?=\S)'
+      pop: 1
+
+  if:
+    - match: '\bif\b'
+      scope: keyword.control.conditional.if.evscript
+      push:
+        - if-body
+        - expr
+  if-body:
+    - match: '\{'
+      scope: punctuation.section.block.begin.evscript
+      set:
+        - else
+        - script-body
+    - match: '(?=\S)'
+      pop: 1
+  else:
+    - match: '\belse\b'
+      scope: keyword.control.conditional.else.evscript
+      set:
+        - include: if
+        - include: block
+    - match: '(?=\S)'
+      pop: 1
+
+  while:
+    - match: '\bwhile\b'
+      scope: keyword.control.loop.while.evscript
+      push:
+        - block
+        - expr
+
+  do:
+    - match: '\bdo\b'
+      scope: keyword.control.loop.do-while.evscript
+      push:
+        - tail-while
+        - block
+  tail-while:
+    - match: '\bwhile\b'
+      scope: keyword.control.loop.while.evscript
+      set:
+        - semicolon
+        - expr
+
+  for:
+    - match: '\bfor\b'
+      scope: keyword.control.loop.for.evscript
+      push:
+        - block
+        - stmt
+        - semicolon
+        - expr
+        - stmt
+
+  repeat:
+    - match: '\brepeat\b'
+      scope: keyword.control.loop.repeat-until.evscript
+      push:
+        - block
+        - expr
+
+  loop:
+    - match: '\bloop\b'
+      scope: keyword.control.loop.evscript
+      push: block
+
+  block:
+    - match: '\{'
+      scope: punctuation.section.block.begin.evscript
+      set: script-body
+    - match: '(?=\S)'
+      pop: 1
+
+
+  # Not attempting to parse expressions *exactly* here, both for practicality reasons
+  # and because it should be more useful when editing expressions.
+  expr:
+    - match: '[0-9]+'
+      scope: constant.numeric.integer.decimal.evscript
+    - match: '&(?=\s*{{iden}})' # Address-of operator.
+      scope: keyword.operator.evscript
+    - match: '\('
+      scope: punctuation.section.parens.begin.evscript
+      push:
+        - meta_scope: meta.parens.evscript
+        - match: '\)'
+          scope: punctuation.section.parens.end.evscript
+          pop: 1
+        - include: expr
+    - match: '\['
+      scope: punctuation.section.brackets.begin.evscript
+      push:
+        - meta_scope: meta.brackets.evscript
+        - match: '\]'
+          scope: punctuation.section.brackets.end.evscript
+          pop: 1
+        - include: expr
+    - match: '({{iden}})\s*(\()'
+      captures:
+        1: variable.function.evscript
+        2: punctuation.section.group.begin.evscript
+      push:
+        - meta_scope: meta.function-call.evscript
+        - meta_content_scope: meta.function-call.arguments.evscript
+        - match: '\)'
+          scope: punctuation.section.group.end.evscript
+          pop: 1
+    - match: '{{iden}}'
+    - match: '(?=")'
+      push: string
+    - match: '[*/%+-]'
+      scope: keyword.operator.arithmetic.evscript
+    - match: '[=!<>]='
+      scope: keyword.operator.comparison.evscript
+    - match: '[!&^|]|<<|>>'
+      scope: keyword.operator.bitwise.evscript
+    - match: '[<>]'
+      scope: keyword.operator.comparison.evscript
+    - match: '&&|\|\|'
+      scope: keyword.operator.logical.evscript
+    - match: '(?=\S)'
+      pop: 1
+
+  string:
+    - match: '"'
+      scope: punctuation.definition.string.begin.evscript
+      set:
+        - meta_scope: meta.string.evscript string.quoted.double.evscript
+        - match: '"'
+          scope: punctuation.definition.string.end.evscript
+          pop: 1
+        - match: '\\.'
+          scope: constant.character.escape.evscript
+
+  type:
+    - match: '\bu(?:8|16)\b'
+      scope: support.type.evscript
+      pop: 1
+    - match: '{{iden}}'
+      pop: 1
+    - match: '{{keyword}}'
+      scope: invalid.illegal.evscript
+      pop: 1
+    - include: brace-pop
+    - include: semicolon-pop
+
+  script-ref:
+    - match: '{{iden}}'
+      scope: storage.type.evscript
+      pop: 1
+    - match: '{{keyword}}'
+      scope: invalid.illegal.evscript
+      pop: 1
+    - include: semicolon-pop
+    - include: brace-pop
+
+  func-ref:
+    - match: '\b(?:ret|yld)\b'
+      scope: variable.function.evscript support.function.evscript
+      pop: 1
+    - match: '{{iden}}'
+      scope: variable.function.evscript
+      pop: 1
+    - match: '{{keyword}}'
+      scope: invalid.illegal.evscript
+      pop: 1
+    - match: '(?=[};(])'
+      pop: 1
+
+
+  seq-comma:
+    - match: ','
+      scope: punctuation.separator.sequence.evscript
+      pop: 1
+    - match: '(?=[};)])'
+      pop: 1
+
+  assign-equals:
+    - match: '='
+      scope: keyword.operator.assignment.evscript
+      pop: 1
+    - match: '(?=[};)])'
+      pop: 1
+
+  semicolon-pop:
+    - match: '(?=;)'
+      pop: 1
+
+  semicolon:
+    - match: ';'
+      scope: punctuation.terminator.evscript
+      pop: 1
+
+  brace-pop:
+    - match: '(?=\})'
+      pop: 1
