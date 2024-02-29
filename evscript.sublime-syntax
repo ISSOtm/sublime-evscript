@@ -292,14 +292,11 @@ contexts:
         - match: '\)'
           scope: punctuation.section.group.end.evscript
           pop: 1
-        - match: '\$'
-          scope: punctuation.definition.variable.begin.evscript
-          push:
-            - meta_scope: variable.parameter.evscript
-            - match: '[0-9]+'
-              set: seq-comma
-            - match: '\S'
-              set: seq-comma
+        - match: '(\$)\s*[0-9]*'
+          captures:
+            1: punctuation.definition.variable.begin.evscript
+          scope: variable.parameter.evscript
+          push: seq-comma
         - match: '\bconst\b'
           scope: storage.modifier.evscript
           push:
@@ -534,6 +531,8 @@ contexts:
   semicolon:
     - match: ';'
       scope: punctuation.terminator.evscript
+      pop: 1
+    - match: '(?=\S)'
       pop: 1
 
   brace-pop:
